@@ -1,0 +1,39 @@
+name: Update Status
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # runs every 5 minutes
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  check-status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Check IPv6 site
+        run: |
+          STATUS="Down"
+
+          # Try HTTP (port 80)
+          if curl -g -6 -s --max-time 5 "http://[2a09:5e41:309:6820:6ba8:f4d0:425c:6691]/" > /dev/null; then
+            STATUS="Operational"
+          fi
+
+          # Try HTTPS (port 443) if HTTP failed
+          if [ "$STATUS" = "Down" ]; then
+            if curl -g -6 -s --max-time 5 "https://[2a09:5e41:309:6820:6ba8:f4d0:425c:6691]/" > /dev/null; then
+              STATUS="Operational"
+            fi
+          fi
+
+          echo "{\"status\": \"$STATUS\"}" > status.json
+
+      - name: Commit changes
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add status.json
+          git commit -m "Update status" || echo "No changes"
+          git push
